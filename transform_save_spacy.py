@@ -7,7 +7,7 @@ from tqdm import tqdm
 from spacy.util import filter_spans
 
 
-df = pd.read_csv('/home/ada/Documents/DTA/Internship/Task_1/C14NL.csv')
+df = pd.read_csv('./Data/C14NL.csv')
 df['sentence'] = df['sentence'].astype('str')
 
 def clean_words(word):
