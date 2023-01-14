@@ -10,29 +10,51 @@ import argparse
 
 
 ######
+ 
+def remove_cols(path, words="word", tag="tag", sentence="sentence"):
+    df = pd.read_csv(path,  sep='\t', names=[words, tag, '365', 'X', sentence])
+    df = df.drop(['365', 'X'], axis=1)
+
+    return df
 
 
 def process_data(path, words="word", tag="tag", sentence="sentence"):
-    df = pd.read_csv(path,  sep='\t', names=[words, tag, '365', 'X', sentence])
-    df = df.drop(['365', 'X'], axis=1)
-    df[sentence] = df[sentence].astype(str)
-
+    """
+    Vectorize data, put data in X, tags in y, extract classes and new classes (classes minus "O")
+    Train-test split
+    """
+    # Load data
+    df = pd.read_csv(path)
+    df[sentence] = df[sentence].astype('str')
+    
+    # X-y split, vectorize X
     X = df.drop([tag], axis=1)
     v = DictVectorizer(sparse=False)
     X = v.fit_transform(X.to_dict('records'))
     y = df.tag.values
+    
+    # New classes = classes minus "O" class, which is most of the data
+    classes = np.unique(y)
+    classes = classes.tolist()
+    new_classes = classes.copy()
+    new_classes.pop()
+
 
     classes = np.unique(y)
     classes = classes.tolist()
     new_classes = classes.copy()
     new_classes.pop()
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.33, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state=0)
 
     return df, classes, new_classes, X_train, X_test, y_train, y_test
 
 
 def test_classifier(X_train, y_train, X_test, y_test, classes, new_classes, name, random_state=42, *args, **kwargs):
+  """
+  Prints classification report 
+  Allows for different models to be tested, with their arguments
+  """
   try:
     classifier = name(*args, **kwargs, random_state=random_state)
   except TypeError: # some classifiers don't have random_state

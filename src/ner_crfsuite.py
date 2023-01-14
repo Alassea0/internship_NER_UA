@@ -16,13 +16,13 @@ from process_for_baselines import process_data
 
 class SentenceGetter(object):
     
-    def __init__(self, data):
+    def __init__(self, data, word="word", tag="tag", sentence="sentence"):
         self.n_sent = 1
         self.data = data
         self.empty = False
-        agg_func = lambda s: [(w, t) for w, t in zip(s['word'].values.tolist(),  
-                                                           s['tag'].values.tolist())]
-        self.grouped = self.data.groupby('sentence').apply(agg_func)
+        agg_func = lambda s: [(w, t) for w, t in zip(s[word].values.tolist(),  
+                                                           s[tag].values.tolist())]
+        self.grouped = self.data.groupby(sentence).apply(agg_func)
         self.sentences = [s for s in self.grouped]
         
     def get_next(self):
@@ -75,6 +75,9 @@ def sent2tokens(sent):
     return [token for token, label in sent]
 
 
+## code copy-pasted from https://github.com/MeMartijn/updated-sklearn-crfsuite.git#egg=sklearn_crfsuite ##
+## This fixes the "TypeError: classification_report() takes 2 positional arguments but 3 were given" error when trying to use flat_classification_report from metrics
+
 def _flattens_y(func):
     @wraps(func)
     def wrapper(y_true, y_pred, *args, **kwargs):
@@ -102,9 +105,7 @@ def train_crf(df):
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33, random_state=0)
 
     crf = sklearn_crfsuite.CRF(
-        algorithm='lbfgs',
-        c1=0.1,
-        c2=0.1,
+        algorithm='pa',
         max_iterations=100,
         all_possible_transitions=True
     )
@@ -114,7 +115,7 @@ def train_crf(df):
     return crf, X_train, X_test, y_train, y_test
 
 
-def main ():
+def main():
     parser = argparse.ArgumentParser() 
     parser.add_argument('-f', '--file', type=argparse.FileType('r'), help="Path to dataset to be processed for baselines")
     parser.add_argument("-sen", "--df_sentence", type=str, default="sentence", help="Column name for sentences (default ='sentence')")
@@ -126,7 +127,6 @@ def main ():
     crf, X_train, X_test, y_train, y_test = train_crf(df)
     y_pred = crf.predict(X_test)
     print(flat_classification_report(y_test, y_pred, labels = new_classes))
-
 
 
 

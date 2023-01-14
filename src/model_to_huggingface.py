@@ -16,7 +16,7 @@ import argparse
 import os
 
 
-######
+###### 
 
 
 def load_process_train(path, name, sentence="sentence", tag="tag", random_state=42, *args, **kwargs):
@@ -175,5 +175,5 @@ if __name__ == '__main__':
     main()
 
 
-    # model_to_huggingface(path_file, passAgg, repo_id, model_filename, commit_message, cmd_args.df_sentence, cmd_args.df_tag, cmd_args.args, cmd_args.kwargs)
+# model_to_huggingface(path_file, passAgg, repo_id, model_filename, commit_message, cmd_args.df_sentence, cmd_args.df_tag, cmd_args.args, cmd_args.kwargs)
 
