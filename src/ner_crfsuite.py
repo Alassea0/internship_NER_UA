@@ -1,17 +1,60 @@
 import sklearn_crfsuite
-from sklearn_crfsuite import scorers
-from sklearn_crfsuite import metrics
-from collections import Counter
 from sklearn.model_selection import train_test_split
 from sklearn_crfsuite.utils import flatten
 from functools import wraps
-import pandas as pd
 import argparse
 from process_for_baselines import process_data
-
+import pickle
 
 
 ###### 
+
+
+"""
+
+Trains CRF suite model on NER data, saves model and prints classification report
+
+
+Requires a .csv file in the following data format, column names MUST BE "word", "tag" and "sentence":
+ 
+| word      |  tag    | sentence |
+|___________|_________|__________|
+| The       |   'O'   |    1     |
+| Uyuni     | 'B-LOC' |    1     |
+| salt      |   'O'   |    1     |
+| flats     |   'O'   |    1     |
+| are       |   'O'   |    1     |
+| in        |   'O'   |    1     |
+| Bolivia   | 'B-LOC' |    1     |
+| When      |   'O'   |    2     |
+| it        |   'O'   |    2     |
+| rains     |   'O'   |    2     |
+
+
+
+TO RUN IN COMMAND LINE: 
+
+- Pass required positional "file" argument (= the path to the data file)
+- Model name is "CRF_suite_trained" by default, if you want another name, pass:
+    - "-fn your_model_name"
+
+
+
+TO USE IN NOTEBOOK:
+
+from process_for_baselines import process_data
+
+df, _, new_classes, _, _, _, _ = process_data(file_path)
+crf, _, X_test, _, y_test = train_crf(df)
+save_model(crf, model_filename)
+y_pred = crf.predict(X_test)
+print(flat_classification_report(y_test, y_pred, labels = new_classes))
+
+Where:
+- file_path = the path to your data file
+- model_filename = the name for the saved model
+
+"""
 
 
 class SentenceGetter(object):
@@ -75,7 +118,7 @@ def sent2tokens(sent):
     return [token for token, label in sent]
 
 
-## code copy-pasted from https://github.com/MeMartijn/updated-sklearn-crfsuite.git#egg=sklearn_crfsuite ##
+## code copy-pasted from https://github.com/MeMartijn/updated-sklearn-crfsuite.git#egg=sklearn_crfsuite #############################################################
 ## This fixes the "TypeError: classification_report() takes 2 positional arguments but 3 were given" error when trying to use flat_classification_report from metrics
 
 def _flattens_y(func):
@@ -96,8 +139,13 @@ def flat_classification_report(y_true, y_pred, labels=None, **kwargs):
     return metrics.classification_report(y_true, y_pred, labels=labels, **kwargs)
 
 
+######################################################################################################################################################################
+
 
 def train_crf(df):
+    """
+    Processes data and trains CRF suite model
+    """
     getter = SentenceGetter(df)
     sentences = getter.sentences
     X = [sent2features(s) for s in sentences]
@@ -115,16 +163,27 @@ def train_crf(df):
     return crf, X_train, X_test, y_train, y_test
 
 
+def save_model(model, filename):
+    """
+    Save model with pickle
+    """
+    with open(filename, mode="bw") as f:
+        pickle.dump(model, file=f)
+
+
 def main():
-    parser = argparse.ArgumentParser() 
-    parser.add_argument('-f', '--file', type=argparse.FileType('r'), help="Path to dataset to be processed for baselines")
-    parser.add_argument("-sen", "--df_sentence", type=str, default="sentence", help="Column name for sentences (default ='sentence')")
-    parser.add_argument("-w", "--df_words", type=str, default="word", help="Column name for words (default ='word')")
-    parser.add_argument("-t", "--df_tag", type=str, default="tag", help="Column name for tags (default = 'tag')")
+    parser = argparse.ArgumentParser(prog = 'Train NER data with sklearn-crfsuite',
+                    description = 'Process NER data and train sklearn-crfsuite model on it. Print classification report.') 
+
+    parser.add_argument('file', type=argparse.FileType('r'), help="Path to dataset to be processed for baselines")
+
+    parser.add_argument("-fn", "--model_filename", type=str, default="CRF_suite_trained", help="Filename for model (default: %(default)s)")
     args = parser.parse_args() 
 
     df, _, new_classes, _, _, _, _ = process_data(args.file)
-    crf, X_train, X_test, y_train, y_test = train_crf(df)
+    crf, _, X_test, _, y_test = train_crf(df)
+    save_model(crf, args.model_filename)
+
     y_pred = crf.predict(X_test)
     print(flat_classification_report(y_test, y_pred, labels = new_classes))
 

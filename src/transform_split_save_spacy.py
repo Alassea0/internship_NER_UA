@@ -1,18 +1,21 @@
 import pandas as pd
 import numpy as np
 from string import punctuation
+from sklearn.model_selection import train_test_split
 import spacy
 from spacy.tokens import DocBin
 from tqdm import tqdm
 from spacy.util import filter_spans
 import argparse
 
-######
+
+ 
+###### 
 
 """
 
 Transforms NER training data into format that can be used to train spaCy. 
-Assumes data has already been split into train-test-dev, and that this script will be applied to all 3 data files. 
+Splits into train, test and dev sets and saves all three.
 
 Requires a .csv file in the following data format:
  
@@ -43,27 +46,34 @@ TO RUN IN COMMAND LINE:
     - "-sen your_sentence_colname" for the sentence column
     - "-w your_word_colname" for the word column
     - "-t your_tag_colname" for the tag column
-- The training data output is named "training_data" by default. If you want anothe filename, pass:
+- The training data output is named "training_data" by default (training_data_TRAIN, training_data_TEST and training_data_DEV). If you want anothe filename, pass:
     - "-fn your_filename"
-
 
 
 TO USE IN NOTEBOOK:
 
-doc_bin = transform_save(file_path, df_sentence_colname, df_word_colname, df_tag_colname)
-## OR, if default column names are used:
-doc_bin = transform_save(file_path)
+from transform_split_save_spacy import make_train_data, training_to_docbin
 
-doc_bin.to_disk(data_filename + ".spacy")
+train_data, test_data, dev_data = make_train_data(file_path, df_sentence_colname, df_word_colname, df_tag_colname)
+## OR, if default column names are used:
+train_data, test_data, dev_data = make_train_data(file_path)
+
+train_docbin = training_to_docbin(train_data)
+test_docbin = training_to_docbin(test_data)
+dev_docbin = training_to_docbin(dev_data)
+
+train_docbin.to_disk(data_filename + "_TRAIN.spacy")
+test_docbin.to_disk(data_filename + "_TEST.spacy")
+dev_docbin.to_disk(data_filename + "_DEV.spacy")
 
 Where:
 - file_path = the path to your data file
 - df_words_colname, df_tag_colname and df_sentence_colname are the names of the "word", "tag" and "sentence" column names in your data. These are set to "word", "tag" and "sentence" by default
 - data_filename = the name for the saved training data
 
+
+
 """
-
-
 
 
 def clean_words(word):
@@ -72,6 +82,7 @@ def clean_words(word):
     """
     word = word.casefold()
     word = word.translate(str.maketrans('', '', punctuation))
+
     return word
 
 
@@ -102,7 +113,17 @@ def group_split(df, sentence="sentence", words="word", tag="tag"):
     new_classes = classes.copy()
     new_classes.pop()
 
-    return X, y, new_classes
+    return X, y, classes, new_classes
+
+
+def train_test_split_data(X, y, random_state=42):
+    """
+    Train-test-dev split 80-10-10
+    """
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state=random_state)
+    X_test, X_dev, y_test, y_dev = train_test_split(X_test, y_test, test_size = 0.5, random_state=random_state)
+
+    return X_train, y_train, X_test, y_test, X_dev, y_dev
 
 
 def convert_data(X, y, new_classes):
@@ -116,26 +137,33 @@ def convert_data(X, y, new_classes):
     """
     nlp = spacy.load('nl_core_news_sm')
 
+    # Initiate dictionary, classes = new_classes (labels excluding 'O')
     training_data = {'classes' : new_classes, 'annotations' : []}
 
+    # Loop over X and y, initiate second dictionary, assign X to text
     for sentence, entity in zip(X, y):
       temp_dict = {}
       temp_dict['text'] = sentence
       temp_dict['entities'] = []
 
+      # Initiate empty start and stop lists
       start = []
       stop = []
+      # Put X (sentence) throuh spacy's nl_core_news_sm model so ce can extract the token indexes 
       doc = nlp(sentence)
       for token in doc:
-          start_ = token.idx
-          stop_ = ((token.idx + len(token.text))) 
+          start_ = token.idx # for the start token, we can simply used the token's idx provided by spaCy
+          stop_ = ((token.idx + len(token.text))) # for the end token, we take the token's idx + the length of the token
           start.append(start_)
           stop.append(stop_)
 
+      # Loop over the start and stop lists with the indexes of each token, as well as entity (y)
       zippity = zip(start, stop, entity)
       for start_, stop_, ent in zippity:
+        # Ignore entity if it's tag is 'O', we only need the start and end token of the actual entities
         if ent == "O":
           pass
+        # If the entity's tag us not 'O', append its start and end tokens, as well as the entity itself to the dictionary 
         else:
           temp_dict['entities'].append((start_, stop_, ent))
       training_data['annotations'].append(temp_dict)
@@ -143,23 +171,34 @@ def convert_data(X, y, new_classes):
     return training_data
 
 
-def transform_save(path, sentence="sentence", words="word", tag="tag"):
+def make_train_data(path, sentence="sentence", words="word", tag="tag"):
     """
     Combines previous functions to make training data from .csv file in the correct format:
     - Reads csv
     - Changes the sentence column to str type instead of int
     - Cleans text
     - Groups by sentence and splits into X, y
-    - Converts data
-    - Converts training data from the dictionary format into spaCy DocBin object
-    - Returns DocBin object
+    - Train-test-dev splits X and y
+    - Converts train, test and dev
+    - Returns converted train, test and dev data (dictionary)
     """
     df = pd.read_csv(path)
     df[sentence] = df[sentence].astype('str')
     df[words] = df[words].apply(clean_words)
-    X, y, new_classes = group_split(df, sentence, words, tag)
-    training_data = convert_data(X, y, new_classes)
+    X, y, _, new_classes = group_split(df, sentence, words, tag)
+    X_train, y_train, X_test, y_test, X_dev, y_dev = train_test_split_data(X, y)
 
+    training_data = convert_data(X_train, y_train, new_classes)
+    test_data = convert_data(X_test, y_test, new_classes)
+    dev_data = convert_data(X_dev, y_dev, new_classes)
+
+    return training_data, test_data, dev_data
+
+
+def training_to_docbin(training_data):
+    """
+    Converts training data from the dictionary format into spaCy DocBin object
+    """
     nlp = spacy.blank("nl") 
     doc_bin = DocBin() 
 
@@ -182,7 +221,6 @@ def transform_save(path, sentence="sentence", words="word", tag="tag"):
     return doc_bin
 
 
-
 def main ():
     parser = argparse.ArgumentParser(prog = 'Tansform NER data into training data for SpaCy',
                     description = 'Process NER data into SpaCy trainin data, save SpaCy training data to file') 
@@ -195,8 +233,19 @@ def main ():
     parser.add_argument("-t", "--df_tag", type=str, default="tag", help="Column name for tags (default: %(default)s)")
     args = parser.parse_args() 
 
-    doc_bin = transform_save(args.file, args.df_sentence, args.df_words, args.df_tag)
-    doc_bin.to_disk(args.data_filename + ".spacy")
+    train_data, test_data, dev_data = make_train_data(args.file, args.df_sentence, args.df_words, args.df_tag)
+
+    print(len(train_data['annotations']))
+    print(len(test_data['annotations']))
+    print(len(dev_data['annotations']))
+
+    train_docbin = training_to_docbin(train_data)
+    test_docbin = training_to_docbin(test_data)
+    dev_docbin = training_to_docbin(dev_data)
+
+    train_docbin.to_disk(args.data_filename + "_TRAIN.spacy")
+    test_docbin.to_disk(args.data_filename + "_TEST.spacy")
+    dev_docbin.to_disk(args.data_filename + "_DEV.spacy")
  
 if __name__ == '__main__':
     main()
