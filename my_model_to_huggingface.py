@@ -135,7 +135,7 @@ def model_to_huggingface(path, model, repo_id, model_filename):
     hub_utils.push(
         repo_id=repo_id,
         source=local_repo,
-        token="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", # personal token to be downloaded from huggingface
+        token="", # personal token to be downloaded from huggingface
         commit_message="Sixth attempt PassiveAggressive middle dutch NER",
         create_remote=True,
         )
