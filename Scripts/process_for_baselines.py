@@ -97,7 +97,7 @@ def process_data(path, words="word", tag="tag", sentence="sentence"):
     new_classes = classes.copy()
     new_classes.pop()
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.1, random_state=0)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2, random_state=0)
 
     return df, classes, new_classes, X_train, X_test, y_train, y_test
 
