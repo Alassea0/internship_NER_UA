@@ -228,10 +228,8 @@ def main ():
     parser = argparse.ArgumentParser(prog = 'Tansform NER data into training data for SpaCy',
                     description = 'Process NER data into SpaCy trainin data, save SpaCy training data to file') 
 
-    # parser.add_argument('trained_model', type=argparse.FileType('r'), help="Dataset to be transformed into SpaCy training data")
     parser.add_argument('trained_model', type=dir_path, help="Trained spaCy model")
     parser.add_argument('test_set', help="Dataset to be transformed into SpaCy training data")
-    # parser.add_argument('test_set', type=argparse.FileType('r'), help="Dataset to be transformed into SpaCy training data")
     parser.add_argument('example_number', type=int, help='an integer for the accumulator')
 
     args = parser.parse_args() 
