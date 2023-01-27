@@ -5,6 +5,7 @@ from spacy.scorer import Scorer
 import pandas as pd
 import numpy as np
 import argparse
+import os
 pd.set_option('display.max_rows', 200)
 
 
@@ -149,7 +150,6 @@ def preds_vs_corr(test_set, number, trained_model):
     return df2.style.apply(lambda x: (x != df2['correct']).map({True: 'background-color: red; color: white', False: ''}), subset=['predicted'])
 
 
-
 def error_analysis(path_model, path_test, number):
     """
     Combines previous functions:
@@ -160,6 +160,49 @@ def error_analysis(path_model, path_test, number):
     nlp_ner = spacy.load(path_model)
     test_set = spacy_to_doc(path_test)
     return preds_vs_corr(test_set, number, nlp_ner)
+
+
+
+def preds_vs_corr_CLI(test_set, number, trained_model):
+    """
+    Allows for one example from test set to be chosen, makes predictions on that example with the trained model,
+    and compares the result with the correct tags, highlighting the mistakes in the predictions
+
+    Adapted for use in the CLI: returns dataframe instead of dataframe with style applied to it
+    """
+    doc_text = test_set[number].text
+    doc_doc = trained_model(doc_text)
+
+    correct_list = []
+    predicted_list = []
+    text_list = []
+    for predicted, correct in zip(doc_doc, test_set[number]):
+        text_list.append(correct.text)
+        correct_list.append(correct.ent_type_)
+        predicted_list.append(predicted.ent_type_)
+
+    list_of_tuples = list(zip(text_list, correct_list, predicted_list))
+  
+    df = pd.DataFrame(list_of_tuples, columns = ["word", "correct", "predicted"])
+    df2 = df.replace(r'^\s*$', np.nan, regex=True)
+    df2 = df2.dropna(subset=["correct", "predicted"], how='all')
+    return df2
+
+
+
+def error_analysis_CLI(path_model, path_test, number):
+    """
+    Combines previous functions:
+    - loads trained model
+    - loads and converts test data to list of Doc objects
+    - Compares predictions and correct tags for chosen example, highlighting mistakes in predictions
+
+    Adapted for use in the CLI: prints dataframe, no highlights for mistakes
+    """
+    nlp_ner = spacy.load(path_model)
+    test_set = spacy_to_doc(path_test)
+    df = preds_vs_corr_CLI(test_set, number, nlp_ner)
+    print(df)
 
 
 
@@ -175,17 +218,25 @@ def render_displacy(doc):
 
 
 
+def dir_path(string):
+    if os.path.isdir(string):
+        return string
+    else:
+        raise NotADirectoryError(string) 
+
 def main ():
     parser = argparse.ArgumentParser(prog = 'Tansform NER data into training data for SpaCy',
                     description = 'Process NER data into SpaCy trainin data, save SpaCy training data to file') 
 
-    parser.add_argument('trained_model', type=argparse.FileType('r'), help="Dataset to be transformed into SpaCy training data")
-    parser.add_argument('test_set', type=argparse.FileType('r'), help="Dataset to be transformed into SpaCy training data")
+    # parser.add_argument('trained_model', type=argparse.FileType('r'), help="Dataset to be transformed into SpaCy training data")
+    parser.add_argument('trained_model', type=dir_path, help="Trained spaCy model")
+    parser.add_argument('test_set', help="Dataset to be transformed into SpaCy training data")
+    # parser.add_argument('test_set', type=argparse.FileType('r'), help="Dataset to be transformed into SpaCy training data")
     parser.add_argument('example_number', type=int, help='an integer for the accumulator')
 
     args = parser.parse_args() 
 
-    error_analysis(args.trained_model, args.test_set, args.example_number)
+    error_analysis_CLI(args.trained_model, args.test_set, args.example_number) 
 
  
 if __name__ == '__main__':
